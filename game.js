@@ -14,6 +14,7 @@ class CoinDash extends Phaser.Scene {
     this.score = 0;
     this.finished = false;
     this.best = this.loadBest();
+    this.paused = false;
     this.deadline = this.time.now + c.roundSeconds * 1000;
     this.physics.world.setBounds(0, 44, c.width, c.height - 44);
     this.overlay = null;
@@ -48,6 +49,12 @@ class CoinDash extends Phaser.Scene {
       try { localStorage.setItem('coinDashTheme', themeName); } catch (e) { /* not saved */ }
       this.applyTheme();
     });
+    // Hidden until paused; created last so it draws above the play area. applyTheme() colours it.
+    this.pauseBox = this.add.rectangle(c.width / 2, c.height / 2, 460, 110);
+    this.pauseText = this.add.text(c.width / 2, c.height / 2, `Paused\npress ${c.pauseKeys[0]} to resume`,
+      { font: '24px monospace', align: 'center', lineSpacing: 12 }).setOrigin(0.5);
+    this.pauseOverlay = this.add.container(0, 0, [this.pauseBox, this.pauseText]).setVisible(false);
+    c.pauseKeys.forEach((key) => this.input.keyboard.on(`keydown-${key}`, () => this.togglePause()));
     this.applyTheme();
   }
 
@@ -61,6 +68,8 @@ class CoinDash extends Phaser.Scene {
     this.player.setFillStyle(t.player);
     this.coin.setFillStyle(t.coin);
     this.drones.getChildren().forEach((drone) => drone.setFillStyle(t.drone));
+    this.pauseBox.setFillStyle(t.overlay, 0.95);
+    this.pauseText.setColor(t.text);
     if (this.overlay) {
       this.overlay.box.setFillStyle(t.overlay, 0.95);
       this.overlay.text.setColor(t.text);
@@ -95,8 +104,22 @@ class CoinDash extends Phaser.Scene {
     this.coin.body.reset(x, y);
   }
 
-  update() {
+  togglePause() {
     if (this.finished) return;
+    this.paused = !this.paused;
+    this.pauseOverlay.setVisible(this.paused);
+    if (this.paused) {
+      this.pausedAt = this.time.now;
+      this.physics.pause();
+    } else {
+      // Paused time must not count against the round.
+      this.deadline += this.time.now - this.pausedAt;
+      this.physics.resume();
+    }
+  }
+
+  update() {
+    if (this.finished || this.paused) return;
     const dx = Number(this.cursors.right.isDown || this.keys.D.isDown)
       - Number(this.cursors.left.isDown || this.keys.A.isDown);
     const dy = Number(this.cursors.down.isDown || this.keys.S.isDown)

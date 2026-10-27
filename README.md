@@ -1,8 +1,8 @@
 # Coin Dash — Lab 3 starter
 
 Collect coins, avoid drones, and survive a 45-second round. Move with arrow keys or WASD;
-press R to restart and T to switch between dark and light themes (the choice is remembered).
-This is deliberately small so you can add features during the lab.
+press P or Esc to pause, R to restart, and T to switch between dark and light themes (the choice is
+remembered). This is deliberately small so you can add features during the lab.
 
 **Play it here:** https://www.avivz.net/coin-dash/
 
