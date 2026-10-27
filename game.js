@@ -12,6 +12,66 @@ try {
   if (COIN_DASH.difficulties[saved]) difficulty = saved;
 } catch (e) { /* storage unavailable: keep the default */ }
 
+// Sound effects built from oscillators, so there are no audio files. Like the theme, this lives outside
+// the scene: one AudioContext is shared across restarts. Browsers block audio until a user gesture, so
+// the context is created on the first keydown; if Web Audio is missing the game simply stays silent.
+const sound = {
+  ctx: null,
+  master: null,
+  muted: false,
+  unlock() {
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = this.muted ? 0 : COIN_DASH.soundVolume;
+        this.master.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') {
+        const resumed = this.ctx.resume();
+        if (resumed) resumed.catch(() => { /* still blocked: retry on the next key */ });
+      }
+    } catch (e) { /* no audio: play silently */ }
+  },
+  toggleMute() {
+    this.muted = !this.muted;
+    try { localStorage.setItem(COIN_DASH.muteStorageKey, this.muted ? '1' : '0'); } catch (e) { /* not saved */ }
+    if (this.master) this.master.gain.value = this.muted ? 0 : COIN_DASH.soundVolume;
+  },
+  play(name) {
+    const s = COIN_DASH.sounds[name];
+    // Skip while suspended, otherwise the notes would pile up and all play at once on resume.
+    if (this.muted || !s || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      let t = this.ctx.currentTime + (s.delay || 0) / 1000;
+      s.notes.forEach(([freq, ms]) => {
+        const end = t + ms / 1000;
+        const osc = this.ctx.createOscillator();
+        const env = this.ctx.createGain();
+        osc.type = s.wave;
+        osc.frequency.setValueAtTime(freq, t);
+        // Fast attack and exponential decay so notes do not click.
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.exponentialRampToValueAtTime(1, t + 0.01);
+        env.gain.exponentialRampToValueAtTime(0.0001, end);
+        osc.connect(env);
+        env.connect(this.master);
+        osc.start(t);
+        osc.stop(end + 0.02);
+        t = end;
+      });
+    } catch (e) { /* audio failed: keep playing silently */ }
+  }
+};
+try {
+  sound.muted = localStorage.getItem(COIN_DASH.muteStorageKey) === '1';
+} catch (e) { /* storage unavailable: sound on */ }
+// Native listeners (not Phaser's queued key events) so resume() runs inside the user gesture.
+window.addEventListener('keydown', () => sound.unlock());
+window.addEventListener('pointerdown', () => sound.unlock());
+
 class CoinDash extends Phaser.Scene {
   constructor() { super('CoinDash'); }
 
@@ -55,6 +115,7 @@ class CoinDash extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.coin, () => {
       if (this.finished) return;
       this.score++;
+      sound.play('coin');
       this.placeCoin();
     });
     this.physics.add.overlap(this.player, this.powerUp, () => {
@@ -78,6 +139,11 @@ class CoinDash extends Phaser.Scene {
         this.scene.restart();
       });
     });
+    // Small mute indicator under the mode label; M works while paused and after the round too.
+    this.soundText = this.add.text(c.width - 18, 24, '', { font: '14px monospace' }).setOrigin(1, 0);
+    const showSound = () => this.soundText.setText(`Sound: ${sound.muted ? 'off' : 'on'} (${c.muteKey})`);
+    showSound();
+    this.input.keyboard.on(`keydown-${c.muteKey}`, () => { sound.toggleMute(); showSound(); });
     // Hidden until paused; created last so it draws above the play area. applyTheme() colours it.
     this.pauseBox = this.add.rectangle(c.width / 2, c.height / 2, 460, 110);
     this.pauseText = this.add.text(c.width / 2, c.height / 2, `Paused\npress ${c.pauseKeys[0]} to resume`,
@@ -95,6 +161,7 @@ class CoinDash extends Phaser.Scene {
     this.grid.setFillStyle(t.background, 1).setOutlineStyle(t.grid, 0.45);
     this.hud.setColor(t.text);
     this.modeText.setColor(t.text);
+    this.soundText.setColor(t.text);
     this.player.setFillStyle(t.player);
     this.coin.setFillStyle(t.coin);
     this.powerUp.setFillStyle(t.powerUp);
@@ -221,6 +288,9 @@ class CoinDash extends Phaser.Scene {
       this.best = this.score;
       this.saveBest(this.best);
     }
+    // The timer only runs out once the deadline has passed; any earlier finish is a drone.
+    sound.play(this.time.now >= this.deadline ? 'timeUp' : 'caught');
+    if (newBest) sound.play('highScore');
     const c = COIN_DASH;
     const bestLine = newBest ? `New high score! Best: ${this.best}` : `Best: ${this.best}`;
     const box = this.add.rectangle(c.width / 2, c.height / 2, 520, 190);

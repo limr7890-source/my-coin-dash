@@ -21,6 +21,17 @@ window.COIN_DASH = {
     normal: { key: 'TWO', label: 'Normal' },
     hard: { key: 'THREE', label: 'Hard', droneCount: 5, droneSpeed: 140 }
   },
+  // Sound effects are synthesised with Web Audio; muteKey toggles them and muteStorageKey remembers it.
+  muteKey: 'M',
+  muteStorageKey: 'coinDash.muted',
+  soundVolume: 0.12, // master volume, 0..1
+  // Each sound is a waveform plus [frequency in Hz, length in ms] notes played one after another.
+  sounds: {
+    coin: { wave: 'square', notes: [[988, 45], [1319, 90]] },
+    caught: { wave: 'sawtooth', notes: [[150, 160], [95, 320]] },
+    timeUp: { wave: 'triangle', notes: [[523, 100], [659, 100], [784, 100], [1047, 220]] },
+    highScore: { wave: 'triangle', delay: 600, notes: [[1047, 70], [1319, 70], [1568, 70], [2093, 280]] }
+  },
   // Press themeKey to switch palettes; the page colours for each theme live in style.css.
   themeKey: 'T',
   themes: {

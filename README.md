@@ -2,9 +2,10 @@
 
 Collect coins, avoid drones, and survive a 45-second round. Move with arrow keys or WASD;
 press P or Esc to pause, R to restart, 1 / 2 / 3 to pick Easy / Normal / Hard (fewer or more,
-slower or faster drones; this restarts the round), and T to switch between dark and light themes
-(both choices are remembered). Every so often a purple star power-up appears for a few seconds; grab
-it to slow the drones down for 5 seconds. This is deliberately small so you can add features during the lab.
+slower or faster drones; this restarts the round), T to switch between dark and light themes, and M to
+mute or unmute the sound effects (these choices are remembered). Every so often a purple star power-up
+appears for a few seconds; grab it to slow the drones down for 5 seconds. This is deliberately small so
+you can add features during the lab.
 
 **Play it here:** https://www.avivz.net/coin-dash/
 
@@ -39,11 +40,12 @@ laptops' JSON files together and save the combined HTML. Use the same time windo
 - `.gitignore`: keeps generated reports out of Git.
 - `index.html`: page and script loading.
 - `style.css`: page appearance.
-- `settings.js`: round duration, speeds, dimensions, difficulty presets, power-up timing, and the dark/light colour themes.
+- `settings.js`: round duration, speeds, dimensions, difficulty presets, power-up timing, the dark/light
+  colour themes, and the sound effects.
 - `game.js`: scene, input, collisions, score and end-of-round behaviour.
 - `vendor/phaser-3.90.0.min.js`: the pinned Phaser runtime, byte for byte the file published at
   `https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js`; `vendor/LICENSE.phaser.txt` is its MIT licence.
 
-The game draws its own shapes; there are no image or audio assets. The authored files are under the
-MIT licence in LICENSE.txt. Phaser documentation:
+The game draws its own shapes and synthesises its sounds with the Web Audio API; there are no image
+or audio assets. The authored files are under the MIT licence in LICENSE.txt. Phaser documentation:
 https://docs.phaser.io/phaser/getting-started/making-your-first-phaser-game
