@@ -1,4 +1,11 @@
 /* global Phaser, COIN_DASH */
+// The theme lives outside the scene so it survives R; localStorage keeps it across reloads.
+let themeName = 'dark';
+try {
+  const saved = localStorage.getItem('coinDashTheme');
+  if (COIN_DASH.themes[saved]) themeName = saved;
+} catch (e) { /* storage unavailable: keep the default */ }
+
 class CoinDash extends Phaser.Scene {
   constructor() { super('CoinDash'); }
 
@@ -8,19 +15,19 @@ class CoinDash extends Phaser.Scene {
     this.finished = false;
     this.deadline = this.time.now + c.roundSeconds * 1000;
     this.physics.world.setBounds(0, 44, c.width, c.height - 44);
-    this.add.grid(c.width / 2, c.height / 2, c.width, c.height, 40, 40,
-      c.colors.background, 1, 0x24334b, 0.45);
-    this.hud = this.add.text(18, 12, '', { font: '18px monospace', color: '#ffffff' });
-    this.player = this.add.rectangle(c.width / 2, c.height / 2, 24, 24, c.colors.player);
+    this.overlay = null;
+    this.grid = this.add.grid(c.width / 2, c.height / 2, c.width, c.height, 40, 40);
+    this.hud = this.add.text(18, 12, '', { font: '18px monospace' });
+    this.player = this.add.rectangle(c.width / 2, c.height / 2, 24, 24);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
-    this.coin = this.add.circle(100, 100, 9, c.colors.coin);
+    this.coin = this.add.circle(100, 100, 9);
     this.physics.add.existing(this.coin);
     this.coin.body.setCircle(9);
     this.placeCoin();
     this.drones = this.physics.add.group();
     for (let i = 0; i < c.droneCount; i++) {
-      const drone = this.add.rectangle(90 + i * 270, 100, 26, 26, c.colors.drone);
+      const drone = this.add.rectangle(90 + i * 270, 100, 26, 26);
       this.drones.add(drone);
       drone.body.setCollideWorldBounds(true).setBounce(1, 1);
       const angle = (35 + i * 105) * Math.PI / 180;
@@ -35,6 +42,28 @@ class CoinDash extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys('W,A,S,D,R');
     this.input.keyboard.on('keydown-R', () => this.scene.restart());
+    this.input.keyboard.on(`keydown-${c.themeKey}`, () => {
+      themeName = themeName === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('coinDashTheme', themeName); } catch (e) { /* not saved */ }
+      this.applyTheme();
+    });
+    this.applyTheme();
+  }
+
+  applyTheme() {
+    // Recolour existing objects in place so switching never interrupts the round.
+    const t = COIN_DASH.themes[themeName];
+    document.body.classList.toggle('light', themeName === 'light');
+    this.cameras.main.setBackgroundColor(t.background);
+    this.grid.setFillStyle(t.background, 1).setOutlineStyle(t.grid, 0.45);
+    this.hud.setColor(t.text);
+    this.player.setFillStyle(t.player);
+    this.coin.setFillStyle(t.coin);
+    this.drones.getChildren().forEach((drone) => drone.setFillStyle(t.drone));
+    if (this.overlay) {
+      this.overlay.box.setFillStyle(t.overlay, 0.95);
+      this.overlay.text.setColor(t.text);
+    }
   }
 
   placeCoin() {
@@ -67,11 +96,13 @@ class CoinDash extends Phaser.Scene {
     this.finished = true;
     this.physics.pause();
     const c = COIN_DASH;
-    this.add.rectangle(c.width / 2, c.height / 2, 460, 150, 0x0a1120, 0.95);
-    this.add.text(c.width / 2, c.height / 2,
+    const box = this.add.rectangle(c.width / 2, c.height / 2, 460, 150);
+    const text = this.add.text(c.width / 2, c.height / 2,
       `${reason}\n${this.score} coins collected\nPress R to try again`,
-      { font: '24px monospace', color: '#ffffff', align: 'center', lineSpacing: 12 }
+      { font: '24px monospace', align: 'center', lineSpacing: 12 }
     ).setOrigin(0.5);
+    this.overlay = { box, text };
+    this.applyTheme();
   }
 }
 window.coinDashGame = new Phaser.Game({
@@ -79,7 +110,7 @@ window.coinDashGame = new Phaser.Game({
   parent: 'game',
   width: COIN_DASH.width,
   height: COIN_DASH.height,
-  backgroundColor: COIN_DASH.colors.background,
+  backgroundColor: COIN_DASH.themes[themeName].background,
   physics: { default: 'arcade', arcade: { debug: false } },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_HORIZONTALLY },
   scene: CoinDash
