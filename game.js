@@ -5,21 +5,29 @@ try {
   const saved = localStorage.getItem('coinDashTheme');
   if (COIN_DASH.themes[saved]) themeName = saved;
 } catch (e) { /* storage unavailable: keep the default */ }
+// The difficulty preset survives R and reloads the same way.
+let difficulty = COIN_DASH.defaultDifficulty;
+try {
+  const saved = localStorage.getItem(COIN_DASH.difficultyStorageKey);
+  if (COIN_DASH.difficulties[saved]) difficulty = saved;
+} catch (e) { /* storage unavailable: keep the default */ }
 
 class CoinDash extends Phaser.Scene {
   constructor() { super('CoinDash'); }
 
   create() {
     const c = COIN_DASH;
+    const d = Object.assign({}, c, c.difficulties[difficulty]);
     this.score = 0;
     this.finished = false;
     this.best = this.loadBest();
     this.paused = false;
-    this.deadline = this.time.now + c.roundSeconds * 1000;
+    this.deadline = this.time.now + d.roundSeconds * 1000;
     this.physics.world.setBounds(0, 44, c.width, c.height - 44);
     this.overlay = null;
     this.grid = this.add.grid(c.width / 2, c.height / 2, c.width, c.height, 40, 40);
     this.hud = this.add.text(18, 12, '', { font: '18px monospace' });
+    this.modeText = this.add.text(c.width - 18, 12, `Mode: ${d.label}`, { font: '18px monospace' }).setOrigin(1, 0);
     this.player = this.add.rectangle(c.width / 2, c.height / 2, 24, 24);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
@@ -28,12 +36,13 @@ class CoinDash extends Phaser.Scene {
     this.coin.body.setCircle(9);
     this.placeCoin();
     this.drones = this.physics.add.group();
-    for (let i = 0; i < c.droneCount; i++) {
-      const drone = this.add.rectangle(90 + i * 270, 100, 26, 26);
+    for (let i = 0; i < d.droneCount; i++) {
+      // Three drones per row; extra drones start in a lower row, still clear of the player.
+      const drone = this.add.rectangle(90 + (i % 3) * 270, i < 3 ? 100 : c.height - 100, 26, 26);
       this.drones.add(drone);
       drone.body.setCollideWorldBounds(true).setBounce(1, 1);
       const angle = (35 + i * 105) * Math.PI / 180;
-      drone.body.setVelocity(Math.cos(angle) * c.droneSpeed, Math.sin(angle) * c.droneSpeed);
+      drone.body.setVelocity(Math.cos(angle) * d.droneSpeed, Math.sin(angle) * d.droneSpeed);
     }
     this.physics.add.overlap(this.player, this.coin, () => {
       if (this.finished) return;
@@ -48,6 +57,13 @@ class CoinDash extends Phaser.Scene {
       themeName = themeName === 'dark' ? 'light' : 'dark';
       try { localStorage.setItem('coinDashTheme', themeName); } catch (e) { /* not saved */ }
       this.applyTheme();
+    });
+    Object.keys(c.difficulties).forEach((name) => {
+      this.input.keyboard.on(`keydown-${c.difficulties[name].key}`, () => {
+        difficulty = name;
+        try { localStorage.setItem(c.difficultyStorageKey, name); } catch (e) { /* not saved */ }
+        this.scene.restart();
+      });
     });
     // Hidden until paused; created last so it draws above the play area. applyTheme() colours it.
     this.pauseBox = this.add.rectangle(c.width / 2, c.height / 2, 460, 110);
@@ -65,6 +81,7 @@ class CoinDash extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(t.background);
     this.grid.setFillStyle(t.background, 1).setOutlineStyle(t.grid, 0.45);
     this.hud.setColor(t.text);
+    this.modeText.setColor(t.text);
     this.player.setFillStyle(t.player);
     this.coin.setFillStyle(t.coin);
     this.drones.getChildren().forEach((drone) => drone.setFillStyle(t.drone));

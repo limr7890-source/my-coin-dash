@@ -8,6 +8,14 @@ window.COIN_DASH = {
   droneCount: 3,
   pauseKeys: ['P', 'ESC'],
   highScoreKey: 'coinDash.highScore', // localStorage key for the best score
+  // Press a preset's key to restart with it; each preset overrides the values above (Normal keeps them).
+  difficultyStorageKey: 'coinDash.difficulty',
+  defaultDifficulty: 'normal',
+  difficulties: {
+    easy: { key: 'ONE', label: 'Easy', droneCount: 2, droneSpeed: 80 },
+    normal: { key: 'TWO', label: 'Normal' },
+    hard: { key: 'THREE', label: 'Hard', droneCount: 5, droneSpeed: 140 }
+  },
   // Press themeKey to switch palettes; the page colours for each theme live in style.css.
   themeKey: 'T',
   themes: {
