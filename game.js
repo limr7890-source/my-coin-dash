@@ -27,7 +27,7 @@ class CoinDash extends Phaser.Scene {
     this.overlay = null;
     this.grid = this.add.grid(c.width / 2, c.height / 2, c.width, c.height, 40, 40);
     this.hud = this.add.text(18, 12, '', { font: '18px monospace' });
-    this.modeText = this.add.text(c.width - 18, 12, `Mode: ${d.label}`, { font: '18px monospace' }).setOrigin(1, 0);
+    this.modeText = this.add.text(c.width - 18, 6, `Mode: ${d.label}`, { font: '14px monospace' }).setOrigin(1, 0);
     this.player = this.add.rectangle(c.width / 2, c.height / 2, 24, 24);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
@@ -35,6 +35,14 @@ class CoinDash extends Phaser.Scene {
     this.physics.add.existing(this.coin);
     this.coin.body.setCircle(9);
     this.placeCoin();
+    // One reused power-up star: hidden with its body disabled until the next spawn time.
+    this.powerUp = this.add.star(0, 0, 4, 5, 12).setVisible(false);
+    this.physics.add.existing(this.powerUp);
+    this.powerUp.body.setCircle(12);
+    this.powerUp.body.enable = false;
+    this.powerUpAt = this.time.now + c.powerUpEvery * 1000; // next spawn, or vanish time while shown
+    this.slowUntil = 0; // 0 when drones are at normal speed
+    this.slowLabel = this.add.text(c.width / 2, 54, '', { font: '18px monospace' }).setOrigin(0.5, 0);
     this.drones = this.physics.add.group();
     for (let i = 0; i < d.droneCount; i++) {
       // Three drones per row; extra drones start in a lower row, still clear of the player.
@@ -48,6 +56,11 @@ class CoinDash extends Phaser.Scene {
       if (this.finished) return;
       this.score++;
       this.placeCoin();
+    });
+    this.physics.add.overlap(this.player, this.powerUp, () => {
+      if (this.finished) return;
+      this.hidePowerUp();
+      this.startSlow();
     });
     this.physics.add.overlap(this.player, this.drones, () => this.finish('A drone caught you!'));
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -84,6 +97,8 @@ class CoinDash extends Phaser.Scene {
     this.modeText.setColor(t.text);
     this.player.setFillStyle(t.player);
     this.coin.setFillStyle(t.coin);
+    this.powerUp.setFillStyle(t.powerUp);
+    this.slowLabel.setColor(t.text);
     this.drones.getChildren().forEach((drone) => drone.setFillStyle(t.drone));
     this.pauseBox.setFillStyle(t.overlay, 0.95);
     this.pauseText.setColor(t.text);
@@ -121,6 +136,49 @@ class CoinDash extends Phaser.Scene {
     this.coin.body.reset(x, y);
   }
 
+  updatePowerUp(now) {
+    const c = COIN_DASH;
+    if (this.slowUntil && now >= this.slowUntil) {
+      // Undo the slow-down; scaling the velocity keeps each drone's current direction.
+      this.drones.getChildren().forEach((drone) => drone.body.velocity.scale(1 / c.slowFactor));
+      this.slowUntil = 0;
+    }
+    if (now >= this.powerUpAt) {
+      if (this.powerUp.visible) this.hidePowerUp();
+      else this.placePowerUp();
+    }
+    this.slowLabel.setText(this.slowUntil ? `Slow-mo: ${Math.ceil((this.slowUntil - now) / 1000)}s` : '');
+  }
+
+  placePowerUp() {
+    const c = COIN_DASH;
+    let x, y;
+    do {
+      x = Phaser.Math.Between(25, c.width - 25);
+      y = Phaser.Math.Between(70, c.height - 25);
+    } while (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) < 120
+      || Phaser.Math.Distance.Between(x, y, this.coin.x, this.coin.y) < 30);
+    this.powerUp.setPosition(x, y).setVisible(true);
+    this.powerUp.body.enable = true;
+    this.powerUp.body.reset(x, y);
+    this.powerUpAt = this.time.now + c.powerUpLifetime * 1000;
+  }
+
+  hidePowerUp() {
+    this.powerUp.setVisible(false);
+    this.powerUp.body.enable = false;
+    this.powerUpAt = this.time.now + COIN_DASH.powerUpEvery * 1000;
+  }
+
+  startSlow() {
+    const c = COIN_DASH;
+    // A second pickup while slowed only extends the timer; drones are not slowed twice.
+    if (!this.slowUntil) {
+      this.drones.getChildren().forEach((drone) => drone.body.velocity.scale(c.slowFactor));
+    }
+    this.slowUntil = this.time.now + c.slowSeconds * 1000;
+  }
+
   togglePause() {
     if (this.finished) return;
     this.paused = !this.paused;
@@ -129,8 +187,11 @@ class CoinDash extends Phaser.Scene {
       this.pausedAt = this.time.now;
       this.physics.pause();
     } else {
-      // Paused time must not count against the round.
-      this.deadline += this.time.now - this.pausedAt;
+      // Paused time must not count against the round or the power-up timers.
+      const pausedFor = this.time.now - this.pausedAt;
+      this.deadline += pausedFor;
+      this.powerUpAt += pausedFor;
+      if (this.slowUntil) this.slowUntil += pausedFor;
       this.physics.resume();
     }
   }
@@ -143,6 +204,7 @@ class CoinDash extends Phaser.Scene {
       - Number(this.cursors.up.isDown || this.keys.W.isDown);
     const direction = new Phaser.Math.Vector2(dx, dy).normalize().scale(COIN_DASH.playerSpeed);
     this.player.body.setVelocity(direction.x, direction.y);
+    this.updatePowerUp(this.time.now);
     const seconds = Math.max(0, Math.ceil((this.deadline - this.time.now) / 1000));
     const best = Math.max(this.best, this.score);
     this.hud.setText(`Coins: ${this.score}          Best: ${best}          Time: ${seconds}s`);
