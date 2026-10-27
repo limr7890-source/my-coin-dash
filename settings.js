@@ -6,6 +6,7 @@ window.COIN_DASH = {
   playerSpeed: 240,
   droneSpeed: 105,
   droneCount: 3,
+  highScoreKey: 'coinDash.highScore', // localStorage key for the best score
   // Press themeKey to switch palettes; the page colours for each theme live in style.css.
   themeKey: 'T',
   themes: {

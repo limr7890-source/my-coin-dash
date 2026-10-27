@@ -13,6 +13,7 @@ class CoinDash extends Phaser.Scene {
     const c = COIN_DASH;
     this.score = 0;
     this.finished = false;
+    this.best = this.loadBest();
     this.deadline = this.time.now + c.roundSeconds * 1000;
     this.physics.world.setBounds(0, 44, c.width, c.height - 44);
     this.overlay = null;
@@ -66,6 +67,22 @@ class CoinDash extends Phaser.Scene {
     }
   }
 
+  // Storage can be blocked (private mode, file:// in some browsers); fall back to 0.
+  loadBest() {
+    try {
+      const best = parseInt(localStorage.getItem(COIN_DASH.highScoreKey), 10);
+      return Number.isFinite(best) && best > 0 ? best : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  saveBest(best) {
+    try {
+      localStorage.setItem(COIN_DASH.highScoreKey, String(best));
+    } catch (e) { /* keep playing without a saved record */ }
+  }
+
   placeCoin() {
     const c = COIN_DASH;
     // Avoid spawning the next coin directly underneath the player.
@@ -87,7 +104,8 @@ class CoinDash extends Phaser.Scene {
     const direction = new Phaser.Math.Vector2(dx, dy).normalize().scale(COIN_DASH.playerSpeed);
     this.player.body.setVelocity(direction.x, direction.y);
     const seconds = Math.max(0, Math.ceil((this.deadline - this.time.now) / 1000));
-    this.hud.setText(`Coins: ${this.score}                       Time: ${seconds}s`);
+    const best = Math.max(this.best, this.score);
+    this.hud.setText(`Coins: ${this.score}          Best: ${best}          Time: ${seconds}s`);
     if (seconds === 0) this.finish('Time is up!');
   }
 
@@ -95,10 +113,17 @@ class CoinDash extends Phaser.Scene {
     if (this.finished) return;
     this.finished = true;
     this.physics.pause();
+    // finish() runs once per round, so the record is saved at most once.
+    const newBest = this.score > this.best;
+    if (newBest) {
+      this.best = this.score;
+      this.saveBest(this.best);
+    }
     const c = COIN_DASH;
-    const box = this.add.rectangle(c.width / 2, c.height / 2, 460, 150);
+    const bestLine = newBest ? `New high score! Best: ${this.best}` : `Best: ${this.best}`;
+    const box = this.add.rectangle(c.width / 2, c.height / 2, 520, 190);
     const text = this.add.text(c.width / 2, c.height / 2,
-      `${reason}\n${this.score} coins collected\nPress R to try again`,
+      `${reason}\n${this.score} coins collected\n${bestLine}\nPress R to try again`,
       { font: '24px monospace', align: 'center', lineSpacing: 12 }
     ).setOrigin(0.5);
     this.overlay = { box, text };
